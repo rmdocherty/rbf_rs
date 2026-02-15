@@ -12,9 +12,16 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     sigma_spatial: f32,
     sigma_range: f32,
 ) -> Vec<f32> {
-    let mut output_and_norm_buf = vec![1.0f32; width * height * N_CH_K];
+    // Preallocate buffers, including our two 'ping-pong' buffers
+    let mut buf_a = vec![0.0f32; width * height * N_CH_K];
+    let mut buf_b = vec![0.0f32; width * height * N_CH_K];
+    let mut buf_img = vec![0u8; width * height * N_CH_GUIDANCE];
 
-    let padded_signal = pad_signal_with_weights::<N_CH_K>(signal, width, height, 1.0);
+    let mut src = &mut buf_a;
+    let mut dst = &mut buf_b;
+
+    pad_signal_with_weights::<N_CH_K>(signal, &mut dst, width, height, 1.0);
+    std::mem::swap(&mut src, &mut dst);
 
     // exponential decaying weight table with falloff defined by $sigma_range
     // i.e, if two pixels are 4 intensity apart, the weight is $colour_weight_range_table[3]
@@ -29,31 +36,37 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     let alpha_h = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (width as f32)));
 
     rbf_horizontal_parallel::<N_CH_K, N_CH_GUIDANCE>(
-        &padded_signal,
+        &src,
         guidance_img,
-        &mut output_and_norm_buf,
+        &mut dst,
         width,
         alpha_h,
         &colour_dist_weight_table,
     );
+    std::mem::swap(&mut src, &mut dst);
 
-    let guidance_img_tr = transpose_tiled_hwc(guidance_img, height, width, N_CH_GUIDANCE);
-    let h_filtered_tr = transpose_tiled_hwc(&output_and_norm_buf, height, width, N_CH_K);
+    transpose_tiled_hwc(guidance_img, &mut buf_img, height, width, N_CH_GUIDANCE);
+    transpose_tiled_hwc(&src, &mut dst, height, width, N_CH_K);
+    std::mem::swap(&mut src, &mut dst);
 
     let alpha_v = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (height as f32)));
 
     rbf_horizontal_parallel::<N_CH_K, N_CH_GUIDANCE>(
-        &h_filtered_tr,
-        &guidance_img_tr,
-        &mut output_and_norm_buf,
+        &src,
+        &buf_img,
+        &mut dst,
         height,
         alpha_v,
         &colour_dist_weight_table,
     );
+    std::mem::swap(&mut src, &mut dst);
 
-    let mut normed_output_tr = vec![0.0f32; height * width * N_CH_GUIDANCE];
-    normalize::<N_CH_K>(&output_and_norm_buf, &mut normed_output_tr);
-    transpose_tiled_hwc(&normed_output_tr, width, height, N_CH_K - 1)
+    transpose_tiled_hwc(&src, &mut dst, width, height, N_CH_K);
+    std::mem::swap(&mut src, &mut dst);
+
+    let mut out_buf = vec![0.0f32; width * height * (N_CH_K - 1)];
+    normalize::<N_CH_K>(&src, &mut out_buf);
+    out_buf
 }
 
 fn rbf_horizontal_parallel<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
@@ -174,30 +187,30 @@ fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32
 
 fn pad_signal_with_weights<const N_CH_K: usize>(
     signal: &[f32],
+    output_and_norm_buf: &mut [f32],
     width: usize,
     height: usize,
     val: f32,
-) -> Vec<f32> {
+) {
     let n_ch_signal = N_CH_K - 1;
-    let mut padded_signal = vec![0.0f32; width * height * N_CH_K];
+    // let mut padded_signal = vec![0.0f32; width * height * N_CH_K];
     for i in 0..width * height {
         let signal_px_idx = i * n_ch_signal;
         let padded_px_idx = i * N_CH_K;
         for c in 0..n_ch_signal {
-            padded_signal[padded_px_idx + c] = signal[signal_px_idx + c];
+            output_and_norm_buf[padded_px_idx + c] = signal[signal_px_idx + c];
         }
-        padded_signal[padded_px_idx + n_ch_signal] = val; // Initialize normalization factor to 1
+        output_and_norm_buf[padded_px_idx + n_ch_signal] = val; // Initialize normalization factor to 1
     }
-    padded_signal
 }
 
 fn transpose_tiled_hwc<T: Copy + Default>(
     input: &[T],
+    output: &mut [T],
     src_h: usize,
     src_w: usize,
     c: usize,
-) -> Vec<T> {
-    let mut output = vec![T::default(); src_h * src_w * c];
+) {
     const TILE_SIZE: usize = 16;
 
     for r_outer in (0..src_h).step_by(TILE_SIZE) {
@@ -221,5 +234,4 @@ fn transpose_tiled_hwc<T: Copy + Default>(
             }
         }
     }
-    output
 }
