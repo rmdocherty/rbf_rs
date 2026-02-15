@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use image::{ImageBuffer, ImageReader, Rgb32FImage, RgbImage, buffer::ConvertBuffer};
+use image::{ImageReader, RgbImage};
 
 use std::hint::black_box;
 
@@ -34,7 +34,7 @@ fn bench_recursive_bilateral_filter(c: &mut Criterion) {
 
     group.bench_function("recursive_bilateral_filter_rgb", |b| {
         b.iter(|| {
-            let _filtered = rbf::recursive_bilateral_filter::<3, 3, 4>(
+            let _filtered = rbf::recursive_bilateral_filter::<4, 3>(
                 black_box(&signal),
                 black_box(&guidance),
                 black_box(width),
@@ -45,8 +45,35 @@ fn bench_recursive_bilateral_filter(c: &mut Criterion) {
         });
     });
 
+    let img_l_path = "tests/data/img_l.jpg";
+    let img_l = ImageReader::open(img_l_path)
+        .expect("Failed to open image")
+        .decode()
+        .expect("Failed to decode image")
+        .to_luma8();
+
+    // Prepare signal and guidance buffers
+    let signal_l: Vec<f32> = img_l
+        .pixels()
+        .flat_map(|p| p.0.iter().map(|&v| v as f32))
+        .collect();
+    let guidance_l: Vec<u8> = img_l.pixels().flat_map(|p| p.0.iter().copied()).collect();
+
+    group.bench_function("recursive_bilateral_filter_l", |b| {
+        b.iter(|| {
+            let _filtered = rbf::recursive_bilateral_filter::<2, 1>(
+                black_box(&signal_l),
+                black_box(&guidance_l),
+                black_box(width),
+                black_box(height),
+                black_box(sigma_spatial),
+                black_box(sigma_range),
+            );
+        });
+    });
+
     // Run filter once and save output
-    let filtered = rbf::recursive_bilateral_filter::<3, 3, 4>(
+    let filtered = rbf::recursive_bilateral_filter::<4, 3>(
         &signal,
         &guidance,
         width,
