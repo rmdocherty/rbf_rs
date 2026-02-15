@@ -20,16 +20,20 @@ fn calculate_dist<const N_CH_GUIDANCE: usize>(curr: &[u8], prev: &[u8]) -> i32 {
     }
 }
 
-#[allow(dead_code)]
-pub fn recursive_bilateral_filter<'a, const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: usize>(
+pub fn recursive_bilateral_filter<
+    const N_CH_SIGNAL: usize,
+    const N_CH_GUIDANCE: usize,
+    const N_CH_TOTAL: usize,
+>(
     signal: &[f32],
     guidance_img: &[u8],
-    output_buf: &'a mut [f32],
     width: usize,
     height: usize,
     sigma_spatial: f32,
     sigma_range: f32,
-) -> &'a mut [f32] {
+) -> Vec<f32> {
+    let mut output_and_norm_buf = vec![1.0f32; width * height * (N_CH_SIGNAL + 1)];
+
     // exponential decaying weight table with falloff defined by $sigma_range
     // i.e, if two pixels are 4 intensity apart, the weight is $colour_weight_range_table[3]
     let inverse_sigma_for_range_table = 1.0 / (sigma_range * N_COLOURS as f32);
@@ -40,21 +44,53 @@ pub fn recursive_bilateral_filter<'a, const N_CH_SIGNAL: usize, const N_CH_GUIDA
         .unwrap();
 
     // alpha is spatial weight for filter
-    let alpha_h = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (width as f32).max(height as f32)));
+    let alpha_h = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (width as f32)));
 
     rbf_horizontal_parallel::<N_CH_SIGNAL, N_CH_GUIDANCE>(
         signal,
         guidance_img,
-        output_buf,
+        &mut output_and_norm_buf,
         width,
         alpha_h,
         &colour_dist_weight_table,
     );
 
-    output_buf
+    let mut output = vec![0.0f32; width * height * N_CH_SIGNAL];
+    normalize_and_convert::<N_CH_SIGNAL>(&mut output_and_norm_buf, &mut output);
+    output
+
+    // let mut guidance_tr = vec![0u8; width * height * N_CH_GUIDANCE];
+    // let mut output_norm_tr = vec![0.0f32; width * height * (N_CH_SIGNAL + 1)];
+
+    // transpose_tiled::<f32, N_CH_TOTAL>(&output_and_norm_buf, &mut output_norm_tr, width, height);
+    // transpose_tiled::<u8, N_CH_GUIDANCE>(guidance_img, &mut guidance_tr, width, height);
+
+    // let buf_ptr = output_norm_tr.as_mut_ptr();
+    // let buf_len = output_norm_tr.len();
+
+    // let alpha_v = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (height as f32).max(width as f32)));
+
+    // unsafe {
+    //     // create a "read-only" slice and a "mutable" slice from the same memory
+    //     let signal_ref = std::slice::from_raw_parts(buf_ptr, buf_len);
+    //     let output_ref = std::slice::from_raw_parts_mut(buf_ptr, buf_len);
+
+    //     rbf_horizontal_parallel::<N_CH_SIGNAL, N_CH_GUIDANCE>(
+    //         signal_ref,
+    //         &guidance_tr,
+    //         output_ref,
+    //         height,
+    //         alpha_v,
+    //         &colour_dist_weight_table,
+    //     );
+
+    //     let mut normed_output = vec![0.0f32; width * height * N_CH_SIGNAL];
+    //     normalize_and_convert::<N_CH_SIGNAL>(output_ref, &mut normed_output);
+    //     normed_output
+    // }
 }
 
-pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: usize>(
+fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
     output_and_norm_buf: &mut [f32],
@@ -63,11 +99,12 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
     colour_dist_weight_table: &[f32; N_COLOURS],
 ) {
     let inv_alpha_h = 1.0 - alpha_h;
+    let buf_row_size = width * (N_CH_SIGNAL + 1);
     let signal_row_size = width * N_CH_SIGNAL;
     let guidance_row_size = width * N_CH_GUIDANCE;
 
     output_and_norm_buf
-        .par_chunks_exact_mut(signal_row_size)
+        .par_chunks_exact_mut(buf_row_size)
         .zip(signal.par_chunks_exact(signal_row_size))
         .zip(guidance_img.par_chunks_exact(guidance_row_size))
         .for_each(
@@ -75,7 +112,7 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                 // =========== Forward Pass (Left-to-Right) ===========
                 let mut prev_guidance_px = &guidance_img_row[0..N_CH_GUIDANCE];
                 // we use '10' rather than N_CH_SIGNAL as stable rust can't guarantee size of const generics yet
-                let mut prev_filtered_px = [0.0f32; 11];
+                let mut prev_filtered_px = [1.0f32; 11];
                 // Initialize first pixel
                 for c in 0..N_CH_SIGNAL {
                     let val = signal_row[c] as f32;
@@ -86,6 +123,7 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                 for x in 1..width {
                     let signal_px_idx = x * N_CH_SIGNAL;
                     let guidance_px_idx = x * N_CH_GUIDANCE;
+                    let buf_px_idx = x * (N_CH_SIGNAL + 1);
 
                     let current_signal_px =
                         &signal_row[signal_px_idx..(signal_px_idx + N_CH_SIGNAL)];
@@ -100,12 +138,12 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                     for c in 0..N_CH_SIGNAL {
                         let filtered_val = inv_alpha_h * (current_signal_px[c])
                             + spatial_and_colour_weight * prev_filtered_px[c];
-                        output_and_norm_buf_row[signal_px_idx + c] = filtered_val;
+                        output_and_norm_buf_row[buf_px_idx + c] = filtered_val;
                         prev_filtered_px[c] = filtered_val;
                     }
 
                     // Filter normalization value (the last channel) separately, as doesn't have corresponding guidance value
-                    let norm_val_idx = signal_px_idx + N_CH_SIGNAL;
+                    let norm_val_idx = buf_px_idx + N_CH_SIGNAL;
                     let filtered_norm_val = inv_alpha_h * 1.0
                         + spatial_and_colour_weight * prev_filtered_px[N_CH_SIGNAL];
                     output_and_norm_buf_row[norm_val_idx] = filtered_norm_val;
@@ -117,7 +155,7 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                 // =========== Backward Pass (Right-to-Left) ===========
                 let mut prev_guidance_px_rev =
                     &guidance_img_row[(width - 1) * N_CH_GUIDANCE..width * N_CH_GUIDANCE];
-                let mut prev_filtered_px_rev = [0.0f32; 10];
+                let mut prev_filtered_px_rev = [1.0f32; 10];
 
                 // Initialize with the last pixel of the signal
                 for c in 0..N_CH_SIGNAL {
@@ -128,6 +166,7 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                 for x in (0..width - 1).rev() {
                     let signal_px_idx = x * N_CH_SIGNAL;
                     let guidance_px_idx = x * N_CH_GUIDANCE;
+                    let buf_px_idx = x * (N_CH_SIGNAL + 1);
 
                     let current_signal_px =
                         &signal_row[signal_px_idx..(signal_px_idx + N_CH_SIGNAL)];
@@ -143,19 +182,19 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
                         let filtered_val_rev = inv_alpha_h * (current_signal_px[c])
                             + spatial_and_colour_weight * prev_filtered_px[c];
                         // average the reverse pass ($filtered_val) with the forward pass ``
-                        let filtered_val_fwd = output_and_norm_buf_row[signal_px_idx + c];
-                        output_and_norm_buf_row[signal_px_idx + c] =
+                        let filtered_val_fwd = output_and_norm_buf_row[buf_px_idx + c];
+                        output_and_norm_buf_row[buf_px_idx + c] =
                             0.5 * (filtered_val_rev + filtered_val_fwd);
                         prev_filtered_px[c] = filtered_val_rev;
                     }
 
-                    let norm_val_idx = signal_px_idx + N_CH_SIGNAL;
+                    let norm_val_idx = buf_px_idx + N_CH_SIGNAL;
                     let filtered_norm_val = inv_alpha_h * 1.0
                         + spatial_and_colour_weight * prev_filtered_px_rev[N_CH_SIGNAL];
                     let norm_val_fwd = output_and_norm_buf_row[norm_val_idx];
                     output_and_norm_buf_row[norm_val_idx] =
                         0.5 * (filtered_norm_val + norm_val_fwd);
-                    prev_filtered_px[N_CH_SIGNAL] = filtered_norm_val;
+                    prev_filtered_px_rev[N_CH_SIGNAL] = filtered_norm_val;
 
                     prev_guidance_px_rev = current_guidance_px;
                 }
@@ -163,20 +202,43 @@ pub fn rbf_horizontal_parallel<const N_CH_SIGNAL: usize, const N_CH_GUIDANCE: us
         );
 }
 
+pub fn normalize_and_convert<const N_CH_SIGNAL: usize>(
+    output_plus_norm_buf: &mut [f32],
+    output: &mut [f32],
+) {
+    let n_ch_total: usize = N_CH_SIGNAL + 1;
+
+    output_plus_norm_buf
+        .par_chunks_exact_mut(n_ch_total)
+        .zip(output.par_chunks_exact_mut(N_CH_SIGNAL))
+        .for_each(|(unnormed_px, norm_px)| {
+            let inv_weight = 1.0 / unnormed_px[N_CH_SIGNAL];
+            for c in 0..N_CH_SIGNAL {
+                // Divide by normalization factor and clamp
+                norm_px[c] = unnormed_px[c] * inv_weight;
+            }
+        });
+}
+
 const TILE_SIZE: usize = 32; // Optimized for L1/L2 cache line sizes
 
-pub fn transpose_tiled<const N_CH_TOTAL: usize>(
-    input: &[f32],
-    output: &mut [f32],
+fn transpose_tiled<T: Send + Sync + Copy, const N_CH_TOTAL: usize>(
+    input: &[T],
+    output: &mut [T],
     width: usize,
     height: usize,
 ) {
-    // We process the image in TILE_SIZE x TILE_SIZE blocks of pixels
     let num_tiles_x = (width + TILE_SIZE - 1) / TILE_SIZE;
     let num_tiles_y = (height + TILE_SIZE - 1) / TILE_SIZE;
 
-    // Parallelize across the Y-tiles
+    // We get a raw pointer to the output buffer to allow
+    // parallel threads to write to different tiles.
+    let out_ptr = output.as_mut_ptr() as usize;
+
     (0..num_tiles_y).into_par_iter().for_each(|ty| {
+        // Re-construct the raw pointer safely inside each thread
+        let thread_out_ptr = out_ptr as *mut T;
+
         let y_start = ty * TILE_SIZE;
         let y_end = (y_start + TILE_SIZE).min(height);
 
@@ -184,17 +246,19 @@ pub fn transpose_tiled<const N_CH_TOTAL: usize>(
             let x_start = tx * TILE_SIZE;
             let x_end = (x_start + TILE_SIZE).min(width);
 
-            // Transpose the individual pixels within this tile
             for y in y_start..y_end {
                 for x in x_start..x_end {
                     let in_idx = (y * width + x) * N_CH_TOTAL;
                     let out_idx = (x * height + y) * N_CH_TOTAL;
 
-                    // Move the entire pixel (Signal + Norm) at once
-                    // LLVM can often vectorize this loop if N_CH_TOTAL is a constant
-                    let src = &input[in_idx..in_idx + N_CH_TOTAL];
-                    let dst = &mut output[out_idx..out_idx + N_CH_TOTAL];
-                    dst.copy_from_slice(src);
+                    unsafe {
+                        // Use copy_nonoverlapping for maximum performance
+                        // (equivalent to C++ memcpy)
+                        let src_ptr = input.as_ptr().add(in_idx);
+                        let dst_ptr = thread_out_ptr.add(out_idx);
+
+                        std::ptr::copy_nonoverlapping(src_ptr, dst_ptr, N_CH_TOTAL);
+                    }
                 }
             }
         }
