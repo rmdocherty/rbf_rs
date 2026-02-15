@@ -1,0 +1,22 @@
+[package]
+name = "rbf_rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rayon = "1.11.0"
+
+[dev-dependencies]
+image = {version = "0.25.9", default-features = false, features = ["png", "jpeg"]}
+criterion = { version = "0.7" }
+
+[[bench]]
+name = "bench"
+harness = false
+
+[profile.release]
+strip = true        # Automatically strip symbols from the binary.
+opt-level = 'z'     # Optimize for size ('s' is also an option)
+lto = true          # Enable Link Time Optimization (huge impact)
+codegen-units = 1   # Reduces parallelism but allows better optimization
+panic = 'abort'     # Removes stack unwinding code (saves ~10%+)
