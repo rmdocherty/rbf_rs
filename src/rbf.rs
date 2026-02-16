@@ -34,7 +34,6 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
 
     // alpha is spatial weight for filter
     let alpha_h = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (width as f32)));
-
     rbf_horizontal_parallel::<N_CH_K, N_CH_GUIDANCE>(
         &src,
         guidance_img,
@@ -45,12 +44,11 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     );
     std::mem::swap(&mut src, &mut dst);
 
-    transpose_tiled_hwc(guidance_img, &mut buf_img, height, width, N_CH_GUIDANCE);
-    transpose_tiled_hwc(&src, &mut dst, height, width, N_CH_K);
+    transpose_tiled_hwc::<u8, N_CH_GUIDANCE>(guidance_img, &mut buf_img, height, width);
+    transpose_tiled_hwc::<f32, N_CH_K>(&src, &mut dst, height, width);
     std::mem::swap(&mut src, &mut dst);
 
     let alpha_v = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (height as f32)));
-
     rbf_horizontal_parallel::<N_CH_K, N_CH_GUIDANCE>(
         &src,
         &buf_img,
@@ -61,7 +59,7 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     );
     std::mem::swap(&mut src, &mut dst);
 
-    transpose_tiled_hwc(&src, &mut dst, width, height, N_CH_K);
+    transpose_tiled_hwc::<f32, N_CH_K>(&src, &mut dst, width, height);
     std::mem::swap(&mut src, &mut dst);
 
     let mut out_buf = vec![0.0f32; width * height * (N_CH_K - 1)];
@@ -204,12 +202,11 @@ fn pad_signal_with_weights<const N_CH_K: usize>(
     }
 }
 
-fn transpose_tiled_hwc<T: Copy + Default>(
+fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
     input: &[T],
     output: &mut [T],
     src_h: usize,
     src_w: usize,
-    c: usize,
 ) {
     const TILE_SIZE: usize = 16;
 
@@ -221,14 +218,14 @@ fn transpose_tiled_hwc<T: Copy + Default>(
             for row in r_outer..r_end {
                 for col in c_outer..c_end {
                     // src is (row, col) in a (src_h, src_w) image
-                    let src_idx = (row * src_w + col) * c;
+                    let src_idx = (row * src_w + col) * N_CH;
                     // dst is (col, row) in a (src_w, src_h) image
-                    let dst_idx = (col * src_h + row) * c;
+                    let dst_idx = (col * src_h + row) * N_CH;
 
                     // This is the core "Block Copy"
                     // If c is small (3 or 4), the compiler often inlines this
-                    let s = &input[src_idx..src_idx + c];
-                    let d = &mut output[dst_idx..dst_idx + c];
+                    let s = &input[src_idx..src_idx + N_CH];
+                    let d = &mut output[dst_idx..dst_idx + N_CH];
                     d.copy_from_slice(s);
                 }
             }
