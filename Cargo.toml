@@ -16,7 +16,7 @@ harness = false
 
 [profile.release]
 strip = true        # Automatically strip symbols from the binary.
-opt-level = 'z'     # Optimize for size ('s' is also an option)
+opt-level = 3     # Optimize for speed 
 lto = true          # Enable Link Time Optimization (huge impact)
 codegen-units = 1   # Reduces parallelism but allows better optimization
 panic = 'abort'     # Removes stack unwinding code (saves ~10%+)
