@@ -7,7 +7,7 @@ use rbf_rs::rbf;
 
 fn bench_recursive_bilateral_filter(c: &mut Criterion) {
     // Load the image as RGB8
-    let img_path = "tests/data/test_hr.png";
+    let img_path = "tests/data/blobs.jpg";
     let img = ImageReader::open(img_path)
         .expect("Failed to open image")
         .decode()
