@@ -31,6 +31,9 @@ cargo run --release --example bench_methods
 - bench:
 - bench individual compoentns (horizontal filter, transpose)
 - gnuplot results (speed vs filter size)
+- performance:
+  - allocate once outside rbf (buf_a, buf_b, buf_img)
+  - do fused transpose + norm at end
 - maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
 
 ## To compile references:
