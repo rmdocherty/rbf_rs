@@ -169,7 +169,7 @@ fn calculate_dist<const N_CH_GUIDANCE: usize>(curr: &[u8], prev: &[u8]) -> i32 {
     }
 }
 
-fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32]) {
+pub fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32]) {
     let n_ch_signal = N_CH_K - 1; // Last channel is normalization factor
     output_and_norm_buf
         .par_chunks_exact(N_CH_K)
