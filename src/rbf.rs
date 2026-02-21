@@ -1,6 +1,6 @@
 use rayon::prelude::*;
-use std::f32::consts::E;
 
+const E: f32 = 2.71828182845904523536028747135266250_f32;
 const N_COLOURS: usize = 256;
 
 #[allow(dead_code)]
