@@ -10,3 +10,23 @@ Recursive (joint) bilateral filtering in rust
 - allow joint filtering
 - allow generalizing to N axes i.e, x,y,z
 - SIMD?
+
+## TODO:
+
+- compile rbf cpp example & add to git (small binary). Make it CLI program that can either: a) filter image and save to file or b) accept bench flag and return time take
+- tests: unit & integration (similarity to rbf.cpp)
+- bench:
+- bench individual compoentns (horizontal filter, transpose)
+- compare against a) the cpp implementation b) opencv (write a python program with deps in module comment & run with uv)
+- gnuplot results (speed vs filter size)
+
+## To compile references:
+
+```bash
+git clone https://github.com/ufoym/recursive-bf/
+mkdir recursive-bf/example/stb
+curl -o recursive-bf/example/stb/stb_image.h https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image.h
+curl -o recursive-bf/example/stb/stb_image_write.h https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image_write.h
+cd recursive-bf/
+g++ -std=c++20 example/example.cpp -o ../bench/rbf_cpp_bench
+```

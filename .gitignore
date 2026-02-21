@@ -1,3 +1,4 @@
 /target
 src/rbf.hpp
 *.pdf
+tests/out/*

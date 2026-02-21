@@ -7,7 +7,7 @@ use rbf_rs::rbf;
 
 fn bench_recursive_bilateral_filter(c: &mut Criterion) {
     // Load the image as RGB8
-    let img_path = "tests/data/img.jpg";
+    let img_path = "tests/data/test_hr.png";
     let img = ImageReader::open(img_path)
         .expect("Failed to open image")
         .decode()
@@ -45,32 +45,32 @@ fn bench_recursive_bilateral_filter(c: &mut Criterion) {
         });
     });
 
-    let img_l_path = "tests/data/img_l.jpg";
-    let img_l = ImageReader::open(img_l_path)
-        .expect("Failed to open image")
-        .decode()
-        .expect("Failed to decode image")
-        .to_luma8();
+    // let img_l_path = "tests/data/img_l.jpg";
+    // let img_l = ImageReader::open(img_l_path)
+    //     .expect("Failed to open image")
+    //     .decode()
+    //     .expect("Failed to decode image")
+    //     .to_luma8();
 
-    // Prepare signal and guidance buffers
-    let signal_l: Vec<f32> = img_l
-        .pixels()
-        .flat_map(|p| p.0.iter().map(|&v| v as f32))
-        .collect();
-    let guidance_l: Vec<u8> = img_l.pixels().flat_map(|p| p.0.iter().copied()).collect();
+    // // Prepare signal and guidance buffers
+    // let signal_l: Vec<f32> = img_l
+    //     .pixels()
+    //     .flat_map(|p| p.0.iter().map(|&v| v as f32))
+    //     .collect();
+    // let guidance_l: Vec<u8> = img_l.pixels().flat_map(|p| p.0.iter().copied()).collect();
 
-    group.bench_function("recursive_bilateral_filter_l", |b| {
-        b.iter(|| {
-            let _filtered = rbf::recursive_bilateral_filter::<2, 1>(
-                black_box(&signal_l),
-                black_box(&guidance_l),
-                black_box(width),
-                black_box(height),
-                black_box(sigma_spatial),
-                black_box(sigma_range),
-            );
-        });
-    });
+    // group.bench_function("recursive_bilateral_filter_l", |b| {
+    //     b.iter(|| {
+    //         let _filtered = rbf::recursive_bilateral_filter::<2, 1>(
+    //             black_box(&signal_l),
+    //             black_box(&guidance_l),
+    //             black_box(width),
+    //             black_box(height),
+    //             black_box(sigma_spatial),
+    //             black_box(sigma_range),
+    //         );
+    //     });
+    // });
 
     // Run filter once and save output
     let filtered = rbf::recursive_bilateral_filter::<4, 3>(
