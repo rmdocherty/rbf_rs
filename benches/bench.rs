@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use image::{ImageReader, RgbImage};
+use image::ImageReader;
 
 use std::hint::black_box;
 
@@ -98,6 +98,43 @@ fn bench_transpose_tiled_hwc(c: &mut Criterion) {
     });
 }
 
+fn bench_normalize(c: &mut Criterion) {
+    // Load the image as RGB8
+    let img_path = "tests/data/blobs.jpg";
+    let img = image::ImageReader::open(img_path)
+        .expect("Failed to open image")
+        .decode()
+        .expect("Failed to decode image")
+        .to_rgb8();
+
+    let (width, height) = img.dimensions();
+    let width = width as usize;
+    let height = height as usize;
+
+    // Prepare signal buffer
+    let signal: Vec<f32> = img
+        .pixels()
+        .flat_map(|p| p.0.iter().map(|&v| v as f32))
+        .collect();
+
+    // Prepare normalization buffer
+    let n_ch_k = 4; // For RGB + normalization
+    let mut buf_a = vec![0.0f32; width * height * n_ch_k];
+    let mut out_buf = vec![0.0f32; width * height * (n_ch_k - 1)];
+
+    // Pad signal with weights
+    rbf_rs::rbf::pad_signal_with_weights::<4>(&signal, &mut buf_a, width, height, 1.0);
+
+    let mut group = c.benchmark_group("normalize");
+    group.sample_size(10);
+
+    group.bench_function("normalize", |b| {
+        b.iter(|| {
+            rbf_rs::rbf::normalize::<4>(black_box(&buf_a), black_box(&mut out_buf));
+        });
+    });
+}
+
 fn bench_rbf_rgb_518(c: &mut Criterion) {
     // Load the image as RGB8
     let img_path = "tests/data/blobs.jpg";
@@ -143,6 +180,7 @@ criterion_group!(
     benches,
     bench_rbf_horizontal_pass,
     bench_transpose_tiled_hwc,
+    bench_normalize,
     bench_rbf_rgb_518,
 );
 criterion_main!(benches);
