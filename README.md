@@ -5,7 +5,7 @@ Recursive (joint) bilateral filtering in rust
 ## Examples:
 
 ```bash
-cargo run --release --example filtering
+cargo run --release --example filtering tests/data/blobs.jpg tests/out/img_filtered.png 0.1 0.03
 ```
 
 ```bash
@@ -27,11 +27,9 @@ cargo run --release --example bench_methods
 
 ## TODO:
 
-- compile rbf cpp example & add to git (small binary). Make it CLI program that can either: a) filter image and save to file or b) accept bench flag and return time take
 - tests: unit & integration (similarity to rbf.cpp)
 - bench:
 - bench individual compoentns (horizontal filter, transpose)
-- compare against a) the cpp implementation b) opencv (write a python program with deps in module comment & run with uv)
 - gnuplot results (speed vs filter size)
 - maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
 

@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use image::{ImageReader, Rgb32FImage, RgbImage, buffer::ConvertBuffer};
+use image::{ImageReader, RgbImage};
 use libblur::{
     BlurImage, BlurImageMut, FastBlurChannels, ThreadingPolicy, fast_bilateral_filter_f32,
 };
