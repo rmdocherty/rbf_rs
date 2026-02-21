@@ -67,7 +67,7 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     out_buf
 }
 
-fn rbf_horizontal_parallel<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
+pub fn rbf_horizontal_parallel<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal_and_norm: &[f32],
     guidance_img: &[u8],
     output_and_norm_buf: &mut [f32],
@@ -183,7 +183,7 @@ fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32
         });
 }
 
-fn pad_signal_with_weights<const N_CH_K: usize>(
+pub fn pad_signal_with_weights<const N_CH_K: usize>(
     signal: &[f32],
     output_and_norm_buf: &mut [f32],
     width: usize,
@@ -202,7 +202,7 @@ fn pad_signal_with_weights<const N_CH_K: usize>(
     }
 }
 
-fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
+pub fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
     input: &[T],
     output: &mut [T],
     src_h: usize,
