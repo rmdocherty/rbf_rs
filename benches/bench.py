@@ -35,6 +35,7 @@ if __name__ == "__main__":
 
     # Use optional args if provided
     outfile = args.outfile_opt if args.outfile_opt else None
+    print(outfile)
     infile = args.infile_opt if args.infile_opt else args.infile
     k = args.k_opt if args.k_opt is not None else args.k
     sigmaColor = args.sigmaColor_opt if args.sigmaColor_opt is not None else args.sigmaColor

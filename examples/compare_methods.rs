@@ -1,16 +1,19 @@
-// use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use image::{ImageReader, RgbImage};
 
 use rbf_rs::rbf;
 
 fn main() -> std::io::Result<()> {
-    let mut child = Command::new("ping")
-        .arg("example.com")
-        .stdout(Stdio::piped())
-        .spawn()?;
-
+    let in_dir = "tests/data/blobs.jpg";
+    let out_dir_rbf = "tests/out/compare/rbf.png";
+    let out_dir_cv = "tests/out/compare/cv.png";
+    let out_dir_cpp = "tests/out/compare/cpp.png";
+    let sigma_spatial = 0.03;
+    let sigma_range = 0.1;
+    run_rbf(in_dir, out_dir_rbf, sigma_spatial, sigma_range)?;
+    run_py(in_dir, out_dir_cv, 21, 75.0, 75.0)?;
+    run_cpp(in_dir, out_dir_cpp, sigma_range, sigma_spatial)?;
     Ok(())
 }
 
@@ -59,5 +62,51 @@ fn run_rbf(
         .save(out_dir)
         .expect("Failed to save filtered image");
 
+    Ok(())
+}
+
+fn run_py(
+    infile: &str,
+    outfile: &str,
+    k: i32,
+    sigma_color: f32,
+    sigma_space: f32,
+) -> std::io::Result<()> {
+    let k_str = k.to_string();
+    let sigma_color_str = sigma_color.to_string();
+    let sigma_space_str = sigma_space.to_string();
+
+    let args = vec![
+        "run",
+        "benches/bench.py",
+        "-i",
+        infile,
+        "-o",
+        outfile,
+        "-k",
+        &k_str,
+        "--sigmaColor",
+        &sigma_color_str,
+        "--sigmaSpace",
+        &sigma_space_str,
+    ];
+    let status = Command::new("uv").args(&args).status()?;
+    if !status.success() {
+        eprintln!("bench.py failed with status: {}", status);
+    }
+    Ok(())
+}
+
+fn run_cpp(infile: &str, outfile: &str, sigma_color: f32, sigma_space: f32) -> std::io::Result<()> {
+    let sigma_color_str = sigma_color.to_string();
+    let sigma_space_str = sigma_space.to_string();
+    let n_str = (1_u8).to_string();
+
+    let args = vec![outfile, infile, &sigma_space_str, &sigma_color_str, &n_str];
+    print!("ahhhh");
+    let status = Command::new("benches/rbf_cpp_bench").args(&args).status()?;
+    if !status.success() {
+        eprintln!("bench.py failed with status: {}", status);
+    }
     Ok(())
 }
