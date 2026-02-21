@@ -47,10 +47,13 @@ int main(int argc, char*argv[])
 			recursive_bf(img, img_out, sigma_spatial, sigma_range, width, height, channel, buffer);
 
 		if (n_bench > 1) {
-			printf("External Buffer: %2.5fsecs\n", timer.elapsedTime() / n_bench);
+			printf("(%i, %i, %i), sigma_range: %2.3f, sigma_spatial: %2.3f \n", width, height, channel, sigma_range, sigma_spatial);
+			printf("C++ RBF: %2.6fsecs\n", timer.elapsedTime() / n_bench);
 		}
 		delete[] buffer;
-		stbi_write_bmp(filename_out, width, height, channel, img_out);
+		if (filename_out != "nowrite") {
+			stbi_write_bmp(filename_out, width, height, channel, img_out);
+		}
 		delete[] img;
 	}
 }

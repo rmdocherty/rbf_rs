@@ -58,5 +58,5 @@ if __name__ == "__main__":
         out.save(outfile)
 
     if bench_N > 1:
-        print(f"{img_np.shape}, k: {k}, sigmaColor: {sigmaColor}, sigmaSpace: {sigmaSpace}")
-        print(f"Bilateral filter took {1000 * (end_time - start_time) / bench_N:.4f}ms (OpenCV)")
+        print(f"{img_np.shape}, k: {k}, sigma_range: {sigmaColor}, sigma_spatial: {sigmaSpace}")
+        print(f"CV BF: {(end_time - start_time) / bench_N:.6f}s")
