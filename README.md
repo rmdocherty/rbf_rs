@@ -2,6 +2,20 @@
 
 Recursive (joint) bilateral filtering in rust
 
+## Examples:
+
+```bash
+cargo run --release --example filtering
+```
+
+```bash
+cargo run --release --example compare_methods
+```
+
+```bash
+cargo run --release --example bench_methods
+```
+
 ## Desiderata
 
 - parrallelized
