@@ -1,2 +1,2 @@
 pub mod rbf;
-// pub mod rbf_;
+pub use rbf::{pad_signal_with_weights, rbf_horizontal_parallel};
