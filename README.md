@@ -16,15 +16,6 @@ cargo run --release --example compare_methods
 cargo run --release --example bench_methods
 ```
 
-## Desiderata
-
-- parrallelized
-- allow forwards - backwards averaging
-- allow greyscale
-- allow joint filtering
-- allow generalizing to N axes i.e, x,y,z
-- SIMD?
-
 ## TODO:
 
 - tests: unit & integration (similarity to rbf.cpp)
@@ -34,7 +25,8 @@ cargo run --release --example bench_methods
 - performance:
   - allocate once outside rbf (buf_a, buf_b, buf_img)
   - do fused transpose + norm at end
-- maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
+  - maybe give up on transpose and write explict vertical pass ()
+  - maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
 
 ## To compile references:
 
