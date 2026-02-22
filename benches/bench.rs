@@ -159,6 +159,8 @@ fn bench_rbf_rgb_518(c: &mut Criterion) {
     let sigma_spatial = 0.03;
     let sigma_range = 0.1;
 
+    let mut buf = rbf::ExternalBuffer::new(width, height, 4, 3);
+
     let mut group = c.benchmark_group("recursive_bilateral_filter_rgb");
     group.sample_size(10);
 
@@ -171,6 +173,7 @@ fn bench_rbf_rgb_518(c: &mut Criterion) {
                 black_box(height),
                 black_box(sigma_spatial),
                 black_box(sigma_range),
+                Some(&mut buf),
             );
         });
     });

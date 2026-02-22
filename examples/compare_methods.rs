@@ -53,6 +53,7 @@ fn run_rbf(
         height,
         sigma_spatial,
         sigma_range,
+        None,
     );
 
     let filtered_u8 = filtered
