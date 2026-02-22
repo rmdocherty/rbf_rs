@@ -3,7 +3,23 @@ use rayon::prelude::*;
 const E: f32 = 2.71828182845904523536028747135266250_f32;
 const N_COLOURS: usize = 256;
 
-#[allow(dead_code)]
+pub struct ExternalBuffer {
+    pub buf_a: Vec<f32>,
+    pub buf_b: Vec<f32>,
+    pub buf_img: Vec<u8>,
+}
+
+impl ExternalBuffer {
+    // Preallocate buffers, including our two 'ping-pong' buffers
+    pub fn new(width: usize, height: usize, n_ch_k: usize, n_ch_guidance: usize) -> Self {
+        Self {
+            buf_a: vec![0.0f32; width * height * n_ch_k],
+            buf_b: vec![0.0f32; width * height * n_ch_k],
+            buf_img: vec![0u8; width * height * n_ch_guidance],
+        }
+    }
+}
+
 pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
@@ -11,14 +27,44 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     height: usize,
     sigma_spatial: f32,
     sigma_range: f32,
+    external_buffer: Option<&mut ExternalBuffer>,
 ) -> Vec<f32> {
-    // Preallocate buffers, including our two 'ping-pong' buffers
-    let mut buf_a = vec![0.0f32; width * height * N_CH_K];
-    let mut buf_b = vec![0.0f32; width * height * N_CH_K];
-    let mut buf_img = vec![0u8; width * height * N_CH_GUIDANCE];
+    match external_buffer {
+        Some(buf) => recursive_bilateral_filter_impl::<N_CH_K, N_CH_GUIDANCE>(
+            signal,
+            guidance_img,
+            width,
+            height,
+            sigma_spatial,
+            sigma_range,
+            buf,
+        ),
+        None => {
+            let mut buf = ExternalBuffer::new(width, height, N_CH_K, N_CH_GUIDANCE);
+            recursive_bilateral_filter_impl::<N_CH_K, N_CH_GUIDANCE>(
+                signal,
+                guidance_img,
+                width,
+                height,
+                sigma_spatial,
+                sigma_range,
+                &mut buf,
+            )
+        }
+    }
+}
 
-    let mut src = &mut buf_a;
-    let mut dst = &mut buf_b;
+fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
+    signal: &[f32],
+    guidance_img: &[u8],
+    width: usize,
+    height: usize,
+    sigma_spatial: f32,
+    sigma_range: f32,
+    external_buffer: &mut ExternalBuffer,
+) -> Vec<f32> {
+    let mut src = &mut external_buffer.buf_a;
+    let mut dst = &mut external_buffer.buf_b;
 
     pad_signal_with_weights::<N_CH_K>(signal, &mut dst, width, height, 1.0);
     std::mem::swap(&mut src, &mut dst);
@@ -44,14 +90,19 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     );
     std::mem::swap(&mut src, &mut dst);
 
-    transpose_tiled_hwc::<u8, N_CH_GUIDANCE>(guidance_img, &mut buf_img, height, width);
+    transpose_tiled_hwc::<u8, N_CH_GUIDANCE>(
+        guidance_img,
+        &mut external_buffer.buf_img,
+        height,
+        width,
+    );
     transpose_tiled_hwc::<f32, N_CH_K>(&src, &mut dst, height, width);
     std::mem::swap(&mut src, &mut dst);
 
     let alpha_v = E.powf(-f32::sqrt(2.0) / (sigma_spatial * (height as f32)));
     rbf_horizontal_parallel::<N_CH_K, N_CH_GUIDANCE>(
         &src,
-        &buf_img,
+        &external_buffer.buf_img,
         &mut dst,
         height,
         alpha_v,

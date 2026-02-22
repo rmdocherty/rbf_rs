@@ -38,15 +38,17 @@ fn run_rbf(in_dir: &str, sigma_spatial: f32, sigma_range: f32, n: u32) -> std::i
         .collect();
     let guidance: Vec<u8> = img.pixels().flat_map(|p| p.0.iter().copied()).collect();
 
+    let mut buf = rbf::ExternalBuffer::new(width, height, 4, 3);
     let start_time = std::time::Instant::now();
     for _ in 0..n {
-        let _filtered = rbf::recursive_bilateral_filter::<4, 3>(
+        rbf::recursive_bilateral_filter::<4, 3>(
             &signal,
             &guidance,
             width,
             height,
             sigma_spatial,
             sigma_range,
+            Some(&mut buf),
         );
     }
     let end_time = std::time::Instant::now();
@@ -81,9 +83,9 @@ fn run_libblur(
         .linearize(libblur::TransferFunction::Srgb, true)
         .unwrap();
 
+    let mut dst_image = BlurImageMut::default();
     let start_time = std::time::Instant::now();
     for _ in 0..n {
-        let mut dst_image = BlurImageMut::default();
         fast_bilateral_filter_f32(
             &image,
             &mut dst_image,
