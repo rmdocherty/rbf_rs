@@ -19,12 +19,9 @@ cargo run --release --example bench_methods
 ## TODO:
 
 - tests: unit & integration (similarity to rbf.cpp)
-- bench:
-- bench individual compoentns (horizontal filter, transpose)
-- gnuplot results (speed vs filter size)
 - performance:
-  - allocate once outside rbf (buf_a, buf_b, buf_img)
   - do fused transpose + norm at end
+  - consider better tranpose? (https://github.com/awxkee/fast_transpose/tree/master)
   - maybe give up on transpose and write explict vertical pass ()
   - maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
 
@@ -35,6 +32,9 @@ git clone https://github.com/ufoym/recursive-bf/
 mkdir recursive-bf/example/stb
 curl -o recursive-bf/example/stb/stb_image.h https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image.h
 curl -o recursive-bf/example/stb/stb_image_write.h https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image_write.h
+```
+
+```bash
 cp benches/bench.cpp recursive-bf/example/bench.cpp
 cd recursive-bf/
 g++ -std=c++20 example/bench.cpp -o ../benches/rbf_cpp_bench

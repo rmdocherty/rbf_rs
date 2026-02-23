@@ -52,7 +52,7 @@ int main(int argc, char*argv[])
 		}
 		delete[] buffer;
 		if (filename_out != "nowrite") {
-			stbi_write_bmp(filename_out, width, height, channel, img_out);
+			stbi_write_png(filename_out, width, height, channel, img_out, width * 3);
 		}
 		delete[] img;
 	}
