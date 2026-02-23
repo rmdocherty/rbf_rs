@@ -1,7 +1,3 @@
-/// Parallelized Recursive Bilateral Filter
-///
-/// Based on "Recursive Bilateral Filtering" by Q. Yang et al. (https://link.springer.com/chapter/10.1007/978-3-642-33718-5_29)
-/// and the following C++ implementation (https://github.com/ufoym/recursive-bf)
 use rayon::prelude::*;
 
 const E: f32 = 2.71828182845904523536028747135266250_f32;
@@ -24,6 +20,7 @@ impl ExternalBuffer {
     }
 }
 
+/// Recursive Bilateral Filter dispatcher
 pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
@@ -58,7 +55,7 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     }
 }
 
-/// Implementation of recursive bilateral filter.
+/// Implementation of Recursive Bilateral Filter
 ///
 /// Filters pixels in $signal with respect to colour similarity in $guidance.
 /// Does the following:
@@ -68,7 +65,7 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
 /// - Do horizontal recursive bilateral filtering (now T->B, B->T)
 /// - Transpose result
 /// - Rescale pixels with accumulated normalization weights; return
-fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
+pub fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
     width: usize,
@@ -132,7 +129,7 @@ fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usi
     out_buf
 }
 
-/// Horizontal pass of rbf
+/// Horizontal pass of Recurisive Bilateral Filter
 ///
 /// For each pixel p_i in row:
 /// - calc dist between p_i & p_(i-1) in colour space
@@ -243,6 +240,7 @@ fn calculate_dist<const N_CH_GUIDANCE: usize>(curr: &[u8], prev: &[u8]) -> i32 {
     }
 }
 
+/// Divide pixels in $output_and_norm_buf by corresponding normalization factor, write to $output
 pub fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32]) {
     let n_ch_signal = N_CH_K - 1; // Last channel is normalization factor
     output_and_norm_buf
@@ -257,6 +255,7 @@ pub fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut 
         });
 }
 
+/// Append $val to each pixel in $signal (corresponding to normalization factor), write to $output_and_norm_buf
 pub fn pad_signal_with_weights<const N_CH_K: usize>(
     signal: &[f32],
     output_and_norm_buf: &mut [f32],
@@ -276,6 +275,9 @@ pub fn pad_signal_with_weights<const N_CH_K: usize>(
     }
 }
 
+/// Transpose (h, w, n_ch) -> (w, h, n_ch) in tiles of TILE_SIZE x TILE_SIZE pixels.
+///
+/// Writes to external buffer $output
 pub fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
     input: &[T],
     output: &mut [T],

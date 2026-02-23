@@ -17,6 +17,7 @@ fn run_cpp(infile: &str, outfile: &str, sigma_color: f32, sigma_space: f32) -> s
     Ok(())
 }
 
+/// Run our implentation and compare to reference C++ implementation on test image
 #[test]
 fn test() {
     let infile = "tests/data/blobs.jpg";
