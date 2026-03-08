@@ -1,6 +1,23 @@
 # rbf-rs
 
-Recursive (joint) bilateral filtering in rust
+Recursive (joint) bilateral filtering in rust: a fast approximation of the bilateral filter with performance independent of kernel size.
+
+Rayon-parallelized horizontal filtering + transpose + horizontal filtering + transpose.
+
+Timings:
+| Method        | Time (ms) |
+| ------------- | --------- |
+| Rust RBF (ours)          | 3.14      |
+| C++ RBF          | 20.0     |
+| libblur BF          | 92.1      |
+| OpenCV          | 171      |
+
+NB: (518, 518, 3) image, i7 4.7Ghz, 16GB; k=21, σ_space=75, σ_range=75 for reference BFs
+
+
+Based on:
+- ['Recursive bilateral filtering'](https://doi.org/10.1007/978-3-642-33718-5_29), ECCV12, Qingxiong Yang
+- ['recursive-bf'](https://github.com/ufoym/recursive-bf), github, ufoym
 
 ## Examples:
 
@@ -15,15 +32,6 @@ cargo run --release --example compare_methods
 ```bash
 cargo run --release --example bench_methods
 ```
-
-## TODO:
-
-- tests: unit & integration (similarity to rbf.cpp)
-- performance:
-  - do fused transpose + norm at end
-  - consider better tranpose? (https://github.com/awxkee/fast_transpose/tree/master)
-  - maybe give up on transpose and write explict vertical pass ()
-  - maybe try and avoid realloacting buffer at end during normalize and use v.retain instead
 
 ## To compile references:
 
