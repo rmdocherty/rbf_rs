@@ -10,7 +10,7 @@ pub struct ExternalBuffer {
 }
 
 impl ExternalBuffer {
-    // Preallocate buffers, including our two 'ping-pong' buffers
+    // Preallocate buffers, including two 'ping-pong' buffers (buf_a & buf_b)
     pub fn new(width: usize, height: usize, n_ch_k: usize, n_ch_guidance: usize) -> Self {
         Self {
             buf_a: vec![0.0f32; width * height * n_ch_k],
@@ -20,6 +20,7 @@ impl ExternalBuffer {
     }
 }
 
+/// Recursive Bilateral Filter dispatcher
 pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
@@ -54,7 +55,17 @@ pub fn recursive_bilateral_filter<const N_CH_K: usize, const N_CH_GUIDANCE: usiz
     }
 }
 
-fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
+/// Implementation of Recursive Bilateral Filter
+///
+/// Filters pixels in $signal with respect to colour similarity in $guidance.
+/// Does the following:
+/// - Pad input buffers with required normalization weights (1.0)
+/// - Do L->R and R->L horizontal recursive bilateral filtering on $signal
+/// - Transpose $signal and $guidance image
+/// - Do horizontal recursive bilateral filtering (now T->B, B->T)
+/// - Transpose result
+/// - Rescale pixels with accumulated normalization weights; return
+pub fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal: &[f32],
     guidance_img: &[u8],
     width: usize,
@@ -118,6 +129,16 @@ fn recursive_bilateral_filter_impl<const N_CH_K: usize, const N_CH_GUIDANCE: usi
     out_buf
 }
 
+/// Horizontal pass of Recurisive Bilateral Filter
+///
+/// For each pixel p_i in row:
+/// - calc dist between p_i & p_(i-1) in colour space
+/// - get combined spatial-colour weight \propto sigma_colour * dist * sigma_space
+/// - find filtered_i = (1 / spatial_weight) * signal_i  + spatial-colour weight * filtered_(i-1)
+/// - (this propagates signals across regions of similar colour but preserves harsh edges)
+/// - also update the normalization weight in the same way
+/// - do this in reverse (i.e from R->L), but this time write 0.5 * (filtered_LR_i + filtered_RL_i)
+/// (i.e average across directions)
 pub fn rbf_horizontal_parallel<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
     signal_and_norm: &[f32],
     guidance_img: &[u8],
@@ -203,7 +224,6 @@ pub fn rbf_horizontal_parallel<const N_CH_K: usize, const N_CH_GUIDANCE: usize>(
         );
 }
 
-// Inline helper to force specialization of the distance math
 #[inline(always)]
 fn calculate_dist<const N_CH_GUIDANCE: usize>(curr: &[u8], prev: &[u8]) -> i32 {
     match N_CH_GUIDANCE {
@@ -220,6 +240,7 @@ fn calculate_dist<const N_CH_GUIDANCE: usize>(curr: &[u8], prev: &[u8]) -> i32 {
     }
 }
 
+/// Divide pixels in $output_and_norm_buf by corresponding normalization factor, write to $output
 pub fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut [f32]) {
     let n_ch_signal = N_CH_K - 1; // Last channel is normalization factor
     output_and_norm_buf
@@ -234,6 +255,7 @@ pub fn normalize<const N_CH_K: usize>(output_and_norm_buf: &[f32], output: &mut 
         });
 }
 
+/// Append $val to each pixel in $signal (corresponding to normalization factor), write to $output_and_norm_buf
 pub fn pad_signal_with_weights<const N_CH_K: usize>(
     signal: &[f32],
     output_and_norm_buf: &mut [f32],
@@ -253,6 +275,9 @@ pub fn pad_signal_with_weights<const N_CH_K: usize>(
     }
 }
 
+/// Transpose (h, w, n_ch) -> (w, h, n_ch) in tiles of TILE_SIZE x TILE_SIZE pixels.
+///
+/// Writes to external buffer $output
 pub fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
     input: &[T],
     output: &mut [T],
@@ -281,5 +306,59 @@ pub fn transpose_tiled_hwc<T: Copy + Default, const N_CH: usize>(
                 }
             }
         }
+    }
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pad() {
+        let (h, w, n_ch, val) = (3, 5, 3, 3_f32);
+        let signal = vec![0.0_f32; h * w * n_ch];
+        let mut out_buf = vec![0.0_f32; h * w * (n_ch + 1)];
+
+        pad_signal_with_weights::<4>(&signal, &mut out_buf, w, h, val);
+        let padded_sum: f32 = out_buf.iter().sum();
+        assert!(padded_sum == (h * w) as f32 * val);
+    }
+
+    #[test]
+    fn test_transpose() {
+        let signal: Vec<f32> = vec![1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let signal_tr_gt: Vec<f32> = vec![1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+
+        let mut signal_tr = vec![0.0_f32; 9];
+        transpose_tiled_hwc::<f32, 1>(&signal, &mut signal_tr, 3, 3);
+
+        for i in 0..9 {
+            let a = signal_tr[i];
+            let b = signal_tr_gt[i];
+            assert_eq!(a, b)
+        }
+    }
+
+    #[test]
+    fn test_normalize() {
+        let signal: Vec<f32> = vec![1.0, 1.0, 1.0, 2.0, 0.0, 0.0, 0.0, 2.0, 1.0, 1.0, 1.0, 0.5];
+        let signal_norm_gt: Vec<f32> = vec![0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0];
+
+        let mut signal_norm = vec![0.0_f32; 9];
+        normalize::<4>(&signal, &mut signal_norm);
+        for i in 0..9 {
+            let a = signal_norm[i];
+            let b = signal_norm_gt[i];
+            assert_eq!(a, b)
+        }
+    }
+    #[test]
+    fn test_color_dist() {
+        let grey_px_1 = [100u8];
+        let grey_px_2 = [150u8];
+        let grey_px_3 = [200u8];
+
+        assert_eq!(calculate_dist::<1>(&grey_px_1, &grey_px_2), 50);
+        assert_eq!(calculate_dist::<1>(&grey_px_2, &grey_px_3), 50);
+        assert_eq!(calculate_dist::<1>(&grey_px_1, &grey_px_3), 100);
     }
 }
