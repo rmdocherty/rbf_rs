@@ -47,3 +47,11 @@ cp benches/bench.cpp recursive-bf/example/bench.cpp
 cd recursive-bf/
 g++ -std=c++20 example/bench.cpp -o ../benches/rbf_cpp_bench
 ```
+
+## To build website:
+
+```bash
+wasm-pack build --target web
+cp -r pkg/ website/
+python3 -m http.server -d website
+```

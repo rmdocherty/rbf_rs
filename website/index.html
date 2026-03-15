@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>hello-wasm example</title>
+  </head>
+  <style>
+    body {
+      margin: 5% auto;
+      background: #f2f2f2;
+      color: #444444;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.8;
+      text-shadow: 0 1px 0 #ffffff;
+      max-width: 73%;
+    }
+    code {
+      background: white;
+    }
+    a {
+      border-bottom: 1px solid #444444;
+      color: #444444;
+      text-decoration: none;
+    }
+    a:hover {
+      border-bottom: 0;
+    }
+  </style>
+  <body>
+    <script type="module">
+      import init, { bilateral_filter } from "./pkg/rbf_rs.js";
+
+      let inp_img_elem = document.getElementById("input");
+      let outp_img_elem = document.getElementById("output");
+      // let img_buf = new Uint8Array(await (await fetch(img_elem.src)).arrayBuffer());
+
+      function getImageData(img_elem) {
+        const canvas = document.createElement("canvas");
+        canvas.width = img_elem.width;
+        canvas.height = img_elem.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img_elem, 0, 0);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      }
+
+      function setImageData(img_elem, u8buf, width, height) {
+        img_elem.width = width;
+        img_elem.height = height;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        // const imgData = ctx.createImageData(width, height);
+        const clamped = new Uint8ClampedArray(u8buf);
+        const imgData = new ImageData(clamped, width, height);
+        // imgData.data.set(u8buf);
+        ctx.putImageData(imgData, 0, 0);
+        canvas.toBlob((blob) => {
+          img_elem.src = URL.createObjectURL(blob);
+        }, "image/png");
+      }
+
+      init().then(() => {
+        let img_buf_rgba = getImageData(inp_img_elem);
+        let img_buf_rgb = img_buf_rgba.filter((_, i) => (i + 1) % 4 !== 0);
+        let result_buf = bilateral_filter(img_buf_rgb, inp_img_elem.width, inp_img_elem.height, 0.15, 0.05);
+
+        const startTime = performance.now();
+        setImageData(outp_img_elem, result_buf, inp_img_elem.width, inp_img_elem.height);
+        const endTime = performance.now();
+        console.log(`filtered in ${endTime - startTime} milliseconds`);
+        // img_elem.src = URL.createObjectURL(new Blob([result_buf], { type: "image/png" }));
+      });
+    </script>
+    <div>
+      <img id="input" src="public/summary.png" />
+      <img id="output" />
+    </div>
+  </body>
+</html>

@@ -5,11 +5,15 @@ edition = "2024"
 
 [dependencies]
 rayon = "1.11.0"
+wasm-bindgen = "0.2.114"
 
 [dev-dependencies]
 image = {version = "0.25.9", default-features = false, features = ["png", "jpeg"]}
 criterion = { version = "0.7" }
 libblur = "0.23.1"
+
+[lib]
+crate-type = ["cdylib"]
 
 [[bench]]
 name = "bench"
@@ -17,7 +21,17 @@ harness = false
 
 [profile.release]
 strip = true        # Automatically strip symbols from the binary.
-opt-level = 3     # Optimize for speed 
+opt-level = 3     # Optimize for speed
 lto = true          # Enable Link Time Optimization (huge impact)
 codegen-units = 1   # Reduces parallelism but allows better optimization
 panic = 'abort'     # Removes stack unwinding code (saves ~10%+)
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
+  "-C", "link-arg=--shared-memory",
+  "-C", "link-arg=--max-memory=2147483648", # 2GB limit
+]
