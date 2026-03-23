@@ -1,4 +1,5 @@
 use wasm_bindgen::prelude::*;
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 use crate::rbf::pad_signal_with_weights;
 ///# Parallelized Recursive Bilateral Filter (RBF)

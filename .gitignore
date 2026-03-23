@@ -3,3 +3,7 @@ src/rbf.hpp
 *.pdf
 tests/out/*
 nowrite
+
+*node_modules
+*dist
+*pkg

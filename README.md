@@ -55,3 +55,9 @@ wasm-pack build --target web
 cp -r pkg/ website/
 python3 -m http.server -d website
 ```
+
+
+```bash
+./build.sh
+npx serve dist --config ../serve.json
+```
