@@ -6,8 +6,22 @@ import init, { bilateral_filter, initThreadPool } from "./pkg/rbf_rs.js";
 // inp_img_elem.src = summary;
 
 let inp_img_elem = document.getElementById("input");
-// document.body.appendChild(inp_img_elem);
+let outp_img_elem = document.getElementById("output");
 
+const sigmaSpatialSlider = document.getElementById("sigma-spatial");
+const sigmaRangeSlider = document.getElementById("sigma-range");
+const sigmaSpatialValue = document.getElementById("sigma-spatial-value");
+const sigmaRangeValue = document.getElementById("sigma-range-value");
+const maskSlider = document.getElementById("mask-slider");
+const maskSliderValue = document.getElementById("mask-slider-value");
+
+let sigma_spatial = parseFloat(sigmaSpatialSlider.value);
+let sigma_range = parseFloat(sigmaRangeSlider.value);
+let wasmModule = null;
+let img_buf_rgb = null;
+let img_width = null;
+let img_height = null;
+let result_buf = null;
 
 function getImageData(img_elem) {
   const canvas = document.createElement("canvas");
@@ -34,39 +48,73 @@ function setImageData(img_elem, u8buf, width, height) {
   }, "image/png");
 }
 
+function updateMask(percent) {
+  // percent: 0-100
+  outp_img_elem.style.setProperty("--mask-position", `${percent}%`);
+}
+
+async function runFilterAndUpdate() {
+  if (!img_buf_rgb || !img_width || !img_height || !wasmModule) return;
+  result_buf = bilateral_filter(
+    img_buf_rgb,
+    img_width,
+    img_height,
+    sigma_spatial,
+    sigma_range
+  );
+  setImageData(outp_img_elem, result_buf, img_width, img_height);
+}
+
 async function main() {
-  let wasmModule = await init();
-  console.log(wasmModule.memory.buffer instanceof SharedArrayBuffer); // must be true
+  wasmModule = await init();
   await initThreadPool(navigator.hardwareConcurrency);
 
-  // let inp_img_elem = document.getElementById("input");
-
-  
-
-  let outp_img_elem = document.getElementById("output");
-
+  // Wait for input image to be loaded
+  img_width = inp_img_elem.width;
+  img_height = inp_img_elem.height;
   let img_buf_rgba = getImageData(inp_img_elem);
-  let img_buf_rgb = img_buf_rgba.filter((_, i) => (i + 1) % 4 !== 0);
-  console.log(`input image has ${img_buf_rgb.length / 3} pixels`);
-  let result_buf = bilateral_filter(img_buf_rgb, inp_img_elem.width, inp_img_elem.height, 0.01, 0.05);
+  img_buf_rgb = img_buf_rgba.filter((_, i) => (i + 1) % 4 !== 0);
 
-  const startTime = performance.now();
-  setImageData(outp_img_elem, result_buf, inp_img_elem.width, inp_img_elem.height);
-  const endTime = performance.now();
-  console.log(`filtered in ${endTime - startTime} milliseconds`);
+  await runFilterAndUpdate();
+
+  // Set initial mask
+  updateMask(parseInt(maskSlider.value, 10));
+
+  // Set initial slider values
+  sigmaSpatialValue.textContent = sigma_spatial.toFixed(3);
+  sigmaRangeValue.textContent = sigma_range.toFixed(3);
+  maskSliderValue.textContent = `${maskSlider.value}%`;
 }
 
-inp_img_elem.addEventListener("load", async () => { 
+// Update values & labels live, but run filter only when user releases slider.
+sigmaSpatialSlider.addEventListener("input", (e) => {
+  sigma_spatial = parseFloat(e.target.value);
+  sigmaSpatialValue.textContent = sigma_spatial.toFixed(3);
+});
+
+sigmaSpatialSlider.addEventListener("change", async () => {
+  await runFilterAndUpdate();
+});
+
+sigmaRangeSlider.addEventListener("input", (e) => {
+  sigma_range = parseFloat(e.target.value);
+  sigmaRangeValue.textContent = sigma_range.toFixed(3);
+});
+
+sigmaRangeSlider.addEventListener("change", async () => {
+  await runFilterAndUpdate();
+});
+
+// Keep live transparency mask updates while sliding.
+maskSlider.addEventListener("input", (e) => {
+  let percent = parseInt(e.target.value, 10);
+  maskSliderValue.textContent = `${percent}%`;
+  updateMask(percent);
+});
+
+inp_img_elem.addEventListener("load", async () => {
   await main();
-} );
+});
 if (inp_img_elem.complete) {
-    main();
+  main();
 }
-
-// window.addEventListener("DOMContentLoaded", async () => {
-//   main();
-// });
-
-// window.onload = async () => {
-//   await main();
-// }
