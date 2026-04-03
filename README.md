@@ -53,7 +53,10 @@ g++ -std=c++20 example/bench.cpp -o ../benches/rbf_cpp_bench
 ```bash
 wasm-pack build --target web
 cp -r pkg/ website/
-python3 -m http.server -d website
+cd website
+yarn build
+yarn serve
+#python3 -m http.server -d website
 ```
 
 
