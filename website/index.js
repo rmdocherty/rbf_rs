@@ -1,3 +1,4 @@
+import './style.css'
 import init, { bilateral_filter, initThreadPool } from "./pkg/rbf_rs.js";
 
 let inp_img_elem = document.getElementById("input");
@@ -9,6 +10,7 @@ const sigmaRangeSlider = document.getElementById("sigma-range");
 const sigmaSpatialValue = document.getElementById("sigma-spatial-value");
 const sigmaRangeValue = document.getElementById("sigma-range-value");
 const imageUploadInput = document.getElementById("image-upload");
+const downloadImageButton = document.getElementById("download-image");
 
 let sigma_spatial = parseFloat(sigmaSpatialSlider.value);
 let sigma_range = parseFloat(sigmaRangeSlider.value);
@@ -33,6 +35,13 @@ function drawToOutput(u8buf, width, height) {
   const clamped = new Uint8ClampedArray(u8buf);
   const imgData = new ImageData(clamped, width, height);
   outp_ctx.putImageData(imgData, 0, 0);
+}
+
+function downloadImage() {
+  const link = document.createElement("a");
+  link.download = "filtered_image.png";
+  link.href = outp_canvas_elem.toDataURL();
+  link.click();
 }
 
 async function runFilterAndUpdate() {
@@ -94,6 +103,10 @@ imageUploadInput.addEventListener("change", (e) => {
     // 'load' listener on inp_img_elem will call main() and re-run filtering
   };
   reader.readAsDataURL(file);
+});
+
+downloadImageButton.addEventListener("click", () => {
+  downloadImage();
 });
 
 inp_img_elem.addEventListener("load", async () => {

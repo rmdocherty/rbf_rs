@@ -2,80 +2,29 @@
 <html lang="en-US">
   <head>
     <meta charset="utf-8" />
-    <title>hello-wasm example</title>
-    <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        margin: 40px auto;
-        max-width: 800px;
-        line-height: 1.6;
-        font-size: 18px;
-        color: #444;
-        padding: 0 10px;
-      }
-      h1,
-      h2,
-      h3 {
-        line-height: 1.2;
-      }
-      code {
-        background: white;
-      }
-      a {
-        border-bottom: 1px solid #444444;
-        color: #444444;
-        text-decoration: none;
-      }
-      canvas {
-        object-fit: contain;
-      }
-      a:hover {
-        border-bottom: 0;
-      }
-      canvas {
-        width: 100% !important;
-        height: auto !important;
-      }
-      .page-container {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 1em;
-      }
-      .slider-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 2em;
-        margin-bottom: 1em;
-      }
-      .slider-group {
-        display: flex;
-        align-items: center;
-        gap: 0.5em;
-      }
-      .image-upload-row {
-        display: flex;
-        align-items: center;
-        gap: 0.5em;
-      }
-    </style>
+    <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recursive Bilateral Filter</title>
   </head>
   <body>
     <div class="page-container">
-      <h1>RBF</h1>
+      <h1>Recursive Bilateral Filter</h1>
       <div class="image-upload-row">
-        <label for="image-upload">Choose image</label>
-        <input id="image-upload" type="file" accept="image/*" />
+        <div class="image-upload-group">
+          <label for="image-upload">Upload image:</label>
+          <input id="image-upload" type="file" accept="image/*" />
+        </div>
+        <div>
+          <button id="download-image">Save Image</button>
+        </div>
       </div>
       <div class="slider-row">
         <div class="slider-group">
-          <label for="sigma-spatial">sigma spatial</label>
+          <label for="sigma-spatial">σ_spatial</label>
           <input id="sigma-spatial" type="range" min="0.001" max="0.1" step="0.001" value="0.01" />
           <span id="sigma-spatial-value">0.01</span>
         </div>
         <div class="slider-group">
-          <label for="sigma-range">sigma range</label>
+          <label for="sigma-range">σ_range</label>
           <input id="sigma-range" type="range" min="0.001" max="0.5" step="0.001" value="0.05" />
           <span id="sigma-range-value">0.05</span>
         </div>
@@ -83,6 +32,91 @@
       <div class="image-overlay-container">
         <img id="input" src="/public/summary.png" style="display: none" />
         <canvas id="output"></canvas>
+      </div>
+      <div>
+        <h3>So what's a bilateral filter?</h3>
+        <p>
+          Computer programs tend to store images as 2D arrays of numbers. For a simple greyscale image, this is a 2D
+          array where the value for the pixel (x,y) is an integer between 0 and 255 that says how bright that pixel
+          should be. For a colour image this is 3 numbers representing the (R)ed, (G)reen and (B)lue channels
+          respectively. A black pixel is [0, 0, 0], a red pixel [255, 0, 0] and a white pixel is [255, 255, 255].
+        </p>
+        <p>
+          An 'image filter' takes your input image (represented as a [H, W, 3] array of numbers) and performs some
+          mathematical operation on it. This can be blurring, sharpening, looking for edges, and so on. People like to
+          use a blur filter (usually some form of Gausisan blur) to reduce noise in an image - typically these blurs
+          work by averaging values in a local neighbourhood around each pixel.
+        </p>
+        <p>
+          The classic Gaussian blur works as follows: for each pixel in the image, look at all the other pixels within a
+          radius R (this is the local neighbourhood, often called a kernel), and do a weighted average of all the pixel
+          values. This weighting is based on Gaussian distribution (hence the name) with a standard deviation of
+          σ_spatial, such that nearby pixels have a strong weight and far away pixels have a low weight.
+        </p>
+        <p>
+          The problem with the Gaussian blur is that it's not 'edge aware' - it can and does spread information across
+          sharp boundaries in image colour. One solution to this is the 'bilateral filter', which does the weighted
+          average of pixels in the neighbourhood, but with two weights: a spatial weight (as for the Gaussian blur) and
+          weight based on the colour distance of the two pixels (σ_range). For three pixels, P0 = [128, 128, 128], P1 =
+          [140, 140, 128] and P2 = [128, 128, 90], the (Euclidean) colour distances are dist(P0,P1) = √{(140 - 128)^2 +
+          (140 - 128)^2} = 16.7, dist(P0,P2) = √{(128 - 90)^2} = 38.
+        </p>
+        <p>
+          The fact that colour distances are included in the weights means that pixels that are very different in colour
+          won't be averaged, even if they're right next to each other physically - this is how the bilateral filter
+          preserves edges. There is an associated computational cost: bilateral filters are much slower than a Gaussian
+          blur (for various reasons they are more difficult to optimise).
+        </p>
+
+        <h3>And what's so recursive about it?</h3>
+        <p>
+          The slowness of traditional bilateral filters motivated some fancy ways of speeding it up.
+          <a href="https://link.springer.com/chapter/10.1007/978-3-642-33718-5_29"
+            >Qingxiong Yang proposed the 'Recursive Bilateral Filter'</a
+          >
+          in 2012 which approximates the colour distance from pixel p to pixel q by accumulating the colour distances of
+          all the pixels <i>between</i> p and q inside some internal state. This is why it's recursive: RBF(p_i) = a
+          F(p_i) + RBF(p_i-1). This is neat because it means the runtime is only a function of the number of pixels (and
+          channels) in the image, and not the size of local neighbourhood/kernel.
+        </p>
+        <p>
+          It also means the filter is separable - it can be run as a 1D horizontal pass followed by a 1D vertical pass
+          (rather than over a 2D local neighbourhood at every pixel). Technically it's two horizontal passes and two
+          vertical passes - one to incorporate forward/causal information (left-to-right accumulation), and one to
+          incorporare reverse/anti-causal information. Not only does the separability reduce the total number of
+          operations we need to do, it also makes the algorithm much more amenable to parallelism, i.e. splitting up
+          work into separate chunks so our CPU(s) can process them more efficiently (think chopping your veg whilst the
+          meat cooks).
+        </p>
+
+        <h3>All the boring implementation details</h3>
+        <p>
+          I've effectively ported this
+          <a href="https://github.com/ufoym/recursive-bf">dude's C++ Recursive Bilateral Filter</a> to Rust (this
+          <a href="https://github.com/mthh/recbf">other guy has an RBF in Rust</a>, but it's full of `unsafe` calls and
+          is pretty unreadable), using the <a href="https://github.com/rayon-rs/rayon">'Rayon'</a> crate for super easy
+          parallelism. This gives us some pretty nice speed-ups: 3.14ms for my threaded Rust RBF vs 20ms for the
+          single-threaded C++ RBF. I was pretty lazy in the end and just implemented a parallelized horizontal pass,
+          then transposed the image and filtered rather than writing an explict vertical pass - there's probably a
+          speed-up to be had there.
+        </p>
+        <p>
+          I then wanted to get a web-demo working, which turned out to be a real headache. Compiling rust to wasm is
+          pretty straightforward, but compiling multi-threaded rayon code to wasm is not. There were a bunch of compiler
+          flags & CORs headers I had to set, and I had to use the
+          <a href="https://github.com/RReverser/wasm-bindgen-rayon">'wasm-bindgen-rayon' </a> crate too. I suppose this
+          branch can stand as an example for getting rayon wasm working in 2026 (as well as a testament to man's folly).
+        </p>
+
+        <h3>What's slop, doc?</h3>
+        <p>
+          As gauche as it to showcase AI-generated pictures, I made this as an explainer for a
+          <a href="https://arxiv.org/abs/2603.16840">recent paper</a> where we replaced the learned positional encoding
+          of a popular vision transformer (DINOv2) with relative distances to make their features better for analysising
+          homogeneous microstructures you often get in materials science. If that means nothing to you, that's probably
+          a good thing for your immortal soul. The original generated image has this ugly patching texture (turn down
+          the sliders to see it), which the RBF is pretty good at getting rid of.
+        </p>
       </div>
     </div>
     <script type="module" src="/index.js"></script>

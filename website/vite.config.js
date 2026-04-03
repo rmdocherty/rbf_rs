@@ -8,7 +8,6 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        // REMOVE format: 'iife'
       }
     }
 
