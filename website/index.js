@@ -1,5 +1,26 @@
 import './style.css'
+import './sw.js'
 import init, { bilateral_filter, initThreadPool } from "./pkg/rbf_rs.js";
+
+
+if ("serviceWorker" in navigator) {
+  // Register service worker
+  navigator.serviceWorker.register(new URL("./sw.js", import.meta.url)).then(
+    function (registration) {
+      console.log("COOP/COEP Service Worker registered", registration.scope);
+      // If the registration is active, but it's not controlling the page
+      if (registration.active && !navigator.serviceWorker.controller) {
+          window.location.reload();
+      }
+    },
+    function (err) {
+      console.log("COOP/COEP Service Worker failed to register", err);
+    }
+  );
+} else {
+  console.warn("Cannot register a service worker");
+}
+
 
 let inp_img_elem = document.getElementById("input");
 let outp_canvas_elem = document.getElementById("output");
