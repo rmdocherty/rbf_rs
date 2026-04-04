@@ -39,7 +39,7 @@ jobs:
         id: cache-wasm
         uses: actions/cache@v4
         with:
-          path: .pkg
+          path: ./pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('src/**') }}
 
       - name: Install wasm-pack
