@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('pkg/*') }}
+          key: ${{ runner.os }}-pkg-${{ hashFiles('src/**') }}
 
       - name: Install wasm-pack
         if: steps.cache-wasm.outputs.cache-hit != 'true'
