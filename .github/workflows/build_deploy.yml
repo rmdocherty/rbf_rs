@@ -35,13 +35,23 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Cache wasm package
+        id: cache-wasm
+        uses: actions/cache@v4
+        with:
+          path: .pkg
+          key: ${{ runner.os }}-pkg-${{ hashFiles('pkg/*') }}
+
       - name: Install wasm-pack
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
         run: cargo install wasm-pack
 
       - name: Add rust-std
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
         run: rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
 
       - name: Build wasm pkg
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
         run: RUSTUP_TOOLCHAIN=nightly RUSTFLAGS="-C target-feature=+atomics,+bulk-memory -Clink-arg=--shared-memory -Clink-arg=--max-memory=1073741824 -Clink-arg=--import-memory -Clink-arg=--export=__wasm_init_tls -Clink-arg=--export=__tls_size -Clink-arg=--export=__tls_align -Clink-arg=--export=__tls_base" wasm-pack build --target web
 
       - name: Install dependencies
