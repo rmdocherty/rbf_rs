@@ -1,5 +1,7 @@
 # rbf-rs
 
+[Check out the (multithread wasm) web-demo!](https://rmdocherty.github.io/rbf_rs/)
+
 Recursive (joint) bilateral filtering in rust: a fast approximation of the bilateral filter with performance independent of kernel size.
 
 Rayon-parallelized horizontal filtering + transpose + horizontal filtering + transpose.
@@ -51,16 +53,9 @@ g++ -std=c++20 example/bench.cpp -o ../benches/rbf_cpp_bench
 ## To build website:
 
 ```bash
-wasm-pack build --target web
+RUSTUP_TOOLCHAIN=nightly RUSTFLAGS="-C target-feature=+atomics,+bulk-memory -Clink-arg=--shared-memory -Clink-arg=--max-memory=1073741824 -Clink-arg=--import-memory -Clink-arg=--export=__wasm_init_tls -Clink-arg=--export=__tls_size -Clink-arg=--export=__tls_align -Clink-arg=--export=__tls_base" wasm-pack build --target web
 cp -r pkg/ website/
 cd website
 yarn build
 yarn serve
-#python3 -m http.server -d website
-```
-
-
-```bash
-./build.sh
-npx serve dist --config ../serve.json
 ```
