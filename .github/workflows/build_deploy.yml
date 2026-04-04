@@ -3,8 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: ["wasm"]
-  paths-ignore:
-    - "*.md"
+    paths-ignore:
+      - "*.md"
 
 permissions:
   contents: read
